@@ -1,6 +1,9 @@
 package main
 
-import "io"
+import (
+	"context"
+	"io"
+)
 
 type Request struct {
 	Header   map[string]interface{}
@@ -8,8 +11,5 @@ type Request struct {
 	Path     string
 	Protocol string
 	body     io.Reader
-}
-
-func NewRouter() *Router {
-	return &Router{routes: make(map[string]HandleFunc)}
+	Context  context.Context
 }
