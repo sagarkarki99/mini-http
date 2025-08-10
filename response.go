@@ -11,19 +11,22 @@ type responseWriter struct {
 }
 
 type Response struct {
-	code   int
-	header map[string]string
-	data   []byte
+	code   int               `json:"code"`
+	header map[string]string `json:"header"`
+	data   []byte            `json:"data"`
 }
 
-func (w responseWriter) WriteStatusCode(code int) {
+func (w *responseWriter) WriteStatusCode(code int) {
 	w.response.code = code
 }
 
-func (w responseWriter) Header(key string, value string) {
+func (w *responseWriter) Header(key string, value string) {
+	if w.response.header == nil {
+		w.response.header = make(map[string]string)
+	}
 	w.response.header[key] = value
 }
 
-func (w responseWriter) Write(data []byte) {
+func (w *responseWriter) Write(data []byte) {
 	w.response.data = data
 }
