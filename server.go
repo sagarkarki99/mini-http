@@ -77,12 +77,13 @@ func (s *Server) StartListening(addr string, r *Router) error {
 					fmt.Println("Context canceled, skipping response write")
 					return
 				default:
-					_, err := conn.Write([]byte("Hello world"))
+					// Use the new method to write complete response
+					err := responseW.WriteToConnection(conn)
 					if err != nil {
 						if err == net.ErrClosed {
 							fmt.Println("Connection closed")
 						} else {
-							fmt.Println("Error writing:", err)
+							fmt.Println("Error writing response:", err)
 						}
 					}
 				}
