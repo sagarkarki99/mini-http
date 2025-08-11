@@ -12,22 +12,21 @@ func main() {
 		m := map[string]interface{}{}
 		json.NewDecoder(r.body).Decode(&m)
 		fmt.Println("Body: ", m)
-		for i := 0; i < 1; i++ {
-			select {
-			case <-r.Context.Done():
-				fmt.Println("Request canceled by clie§nt during processing.")
-				return
-			case <-time.After(time.Second * 1):
-				fmt.Println("Slept for", i+1, "second(s)")
+
+		select {
+		case <-r.Context.Done():
+			fmt.Println("Request canceled by clie§nt during processing.")
+			return
+		case <-time.After(time.Second * 1):
+			w.WriteStatusCode(200)
+			w.Header("Content-Type", "application/json")
+			response := map[string]interface{}{
+				"message": "Hello, World!",
 			}
+			data, _ := json.Marshal(response)
+			fmt.Println("Response: ", string(data))
+			w.Write(data)
 		}
-		w.WriteStatusCode(200)
-		w.Header("Content-Type", "application/json")
-		response := map[string]interface{}{
-			"message": "Hello, World!",
-		}
-		data, _ := json.Marshal(response)
-		w.Write(data)
 
 	})
 	server := NewServer()
