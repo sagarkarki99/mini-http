@@ -2,12 +2,10 @@ package main
 
 import (
 	"bufio"
-	"bytes"
 	"context"
 	"fmt"
 	"io"
 	"net"
-	"strconv"
 	"strings"
 	"time"
 )
@@ -50,44 +48,14 @@ func (s *Server) StartListening(addr string, r *Router) error {
 		}
 		go func(conn net.Conn) {
 			defer conn.Close()
-			request := Request{}
-			request.Header = make(map[string]interface{})
-			hasHeader := true
-			firstLine := true
-			reqReader := bufio.NewReader(conn)
-			for hasHeader {
-
-				line, err := reqReader.ReadString('\n')
-				if err != nil {
-					if err == io.EOF {
-						fmt.Println("Client closed the connection (request canceled).")
-						return
-					}
-					fmt.Println("Error: ", err)
-					return
-				}
-				if firstLine {
-					sep := strings.Split(line, " ")
-					request.Method = strings.TrimSpace(sep[0])
-					request.Path = strings.TrimSpace(sep[1])
-					request.Protocol = strings.TrimSpace(sep[0])
-					firstLine = false
-
-				} else {
-					if line == "\r\n" {
-						break
-					}
-					sep := strings.Split(line, ":")
-					key := strings.TrimSpace(sep[0])
-					value := strings.TrimSpace(sep[1])
-					request.Header[key] = value
-				}
+			request := Request{
+				Header: make(map[string]interface{}),
 			}
-
-			fmt.Println("Request: ", request)
-
-			responseW := &responseWriter{
-				response: Response{},
+			reqReader := bufio.NewReader(conn)
+			err := readRequest(reqReader, &request)
+			if err != nil {
+				fmt.Println("Error reading request: ", err)
+				return // Client disconnected during request read.
 			}
 
 			if fn, ok := r.routes[request.Path]; ok {
@@ -95,27 +63,14 @@ func (s *Server) StartListening(addr string, r *Router) error {
 				ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 				defer cancel()
 
-				contentLength := request.Header["Content-Length"]
-				cl, _ := strconv.Atoi(contentLength.(string))
-
-				// Creating another buffer to read the body from the connection.
-				buf := new(bytes.Buffer)
-
-				// Copy from connection by reading and writing to the buffer.
-				_, err := io.Copy(buf, io.LimitReader(reqReader, int64(cl)))
-
-				if err != nil {
-					fmt.Println("Error reading 	body: ", err)
-					return // Client disconnected during body read.
-				}
-				// Assign the body to the request as reader body source.
-				request.body = buf
-
 				request.Context = ctx
-				go monitorConnection(reqReader)
+				go monitorConnection(reqReader, cancel)
 
 				// pass it to goroutine which checks if connection is active or not.
 				// if connection is terminated, cancels the context.
+				responseW := &responseWriter{
+					response: Response{},
+				}
 				fn(responseW, &request)
 				select {
 				case <-ctx.Done():
@@ -137,7 +92,8 @@ func (s *Server) StartListening(addr string, r *Router) error {
 
 }
 
-func monitorConnection(reqReader *bufio.Reader) {
+func monitorConnection(reqReader *bufio.Reader, cancel context.CancelFunc) {
+	defer cancel()
 	// No need to check for context because , readByte is a blocking call from connection buffer.
 	// if any operation happens (error, success), in connection, it will return.
 	// This will return single byte from the buffer
